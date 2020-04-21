@@ -74,7 +74,7 @@ main =
             -- build the default value of type Global, with predefined constants
 
             -- 'stack build --dry-run' just ensures that 'stack.cabal' is generated from hpack
-            _ <- readProcess "stack" ["build", "--dry-run"] ""
+            _ <- readProcess "stack" ["build", "--dry-run", "--system-ghc"] ""
             gStackPackageDescription <-
                 packageDescription <$> readGenericPackageDescription silent "stack.cabal"
             gGpgKey <- maybe defaultGpgKey Just <$> lookupEnv gpgKeyEnvVar
@@ -94,6 +94,7 @@ main =
                 gBuildArgs = []
                 gCertificateName = Nothing
                 gUploadOnly = False
+                gStackYaml = "stack.yaml"
                 global0 = foldl (flip id) Global{..} flags
 
             -- Need to get paths after options since the '--arch' argument can effect them.
@@ -151,6 +152,11 @@ options =
         "Certificate name for code signing on Windows"
     , Option "" [uploadOnlyOptName] (NoArg $ Right $ \g -> g{gUploadOnly = True})
         "Just upload an existing file, but don't try to build it."
+    , Option "" [stackYamlOptName]
+        (ReqArg
+            (\v -> Right $ \g -> g{gStackYaml = v})
+        "stack.yaml file")
+        "stack.yaml file to build from"
     ]
 
 -- | Shake rules.
@@ -206,7 +212,11 @@ rules global@Global{..} args = do
                 ,[" --haddock" | gTestHaddocks]
                 ,[" stack"]]
             let cmd' c = cmd (AddPath [tmpDir] []) stackProgName (stackArgs global) c
-            () <- cmd' "test" gBuildArgs integrationTestFlagArgs "--pedantic --exec stack-integration-test stack"
+            () <- cmd
+                [ gProjectRoot </> releaseBinDir </> binaryName </> stackExeFileName
+                , "exec"
+                , gProjectRoot </> releaseBinDir </> binaryName </> "stack-integration-test"
+                ]
             return ()
         copyFileChanged (releaseBinDir </> binaryName </> stackExeFileName) out
 
@@ -546,9 +556,13 @@ certificateNameOptName = "certificate-name"
 uploadOnlyOptName :: String
 uploadOnlyOptName = "upload-only"
 
+-- | @--stack-yaml@ command-line option name.
+stackYamlOptName :: String
+stackYamlOptName = "stack-yaml"
+
 -- | Arguments to pass to all 'stack' invocations.
 stackArgs :: Global -> [String]
-stackArgs Global{..} = ["--install-ghc", "--arch=" ++ display gArch, "--interleaved-output"]
+stackArgs Global{..} = ["--install-ghc", "--system-ghc", "--stack-yaml=" ++ gStackYaml, "--arch=" ++ display gArch, "--interleaved-output"]
 
 -- | Name of the 'stack' program.
 stackProgName :: FilePath
@@ -602,5 +616,6 @@ data Global = Global
     , gBuildArgs :: [String]
     , gCertificateName :: !(Maybe String)
     , gUploadOnly :: !Bool
+    , gStackYaml :: !FilePath
     }
     deriving (Show)
