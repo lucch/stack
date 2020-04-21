@@ -274,8 +274,10 @@ rules global@Global{..} args = do
                                 ,"/t", "http://timestamp.verisign.com/scripts/timestamp.dll"
                                 ,out])
                             (removeFile out)
+            -- FIXME testing if the stripping was causing the segfault
             Linux ->
-                cmd "strip -p --strip-unneeded --remove-section=.comment -o"
+                -- cmd "strip -p --strip-unneeded --remove-section=.comment -o"
+                cmd "cp" $ reverse
                     [out, releaseBinDir </> binaryName </> stackExeFileName]
             _ ->
                 cmd "strip -o"
